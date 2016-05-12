@@ -51,7 +51,7 @@ def params_shape_like(params):
 def update_params(params, threshold):
     p = numpy.random.random()
     if p > threshold:
-        return (theano.tensor.zeros_like(params) + params)/2
+        return (numpy.zeros_like(params) + params)/2
     else:
         return params
 
@@ -181,6 +181,14 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
     x = T.matrix('x')   # the data is presented as rasterized images
     y = T.ivector('y')  # the labels are presented as 1D vector of
                         # [int] labels
+    l0X = T.tensor4('l0x')
+    l0b = T.vector('l0b')
+    l1X = T.tensor4('l1x')
+    l1b = T.vector('l1b')
+    l2X = T.matrix('l2x')
+    l2b = T.vector('l2b')
+    l3X = T.matrix('l3x')
+    l3b = T.vector('l3b')
 
     ######################
     # BUILD ACTUAL MODEL #
@@ -269,7 +277,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
 
     updates = optFunc(cost, params, learning_rate)
 
-    updates = [(m, update_params(n, threshold=threshold)) for (m, n) in updates]
+    # updates = [(m, update_params(n, threshold=threshold)) for (m, n) in updates]
 
     train_model = theano.function(
         [index],
@@ -279,6 +287,14 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
             x: train_set_x[index * batch_size: (index + 1) * batch_size],
             y: train_set_y[index * batch_size: (index + 1) * batch_size]
         }
+    )
+
+    update_model = theano.function(
+            inputs=[l3X, l3b, l2X, l2b, l1X, l1b, l0X, l0b],
+            updates=[(param, uparam)
+                     for param, uparam in
+                     zip(params, [l3X, l3b, l2X, l2b, l1X, l1b, l0X, l0b])
+                     ]
     )
     # end-snippet-1
 
@@ -318,10 +334,8 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
                 print('training @ iter = ', iter)
             cost_ij = train_model(minibatch_index)
 
-            # for p_index in range(len(params)):
-            #     params_tmp[p_index] = params[p_index].get_value(True)
-
-
+            for p_index in range(len(params)):
+                params_tmp[p_index] = params[p_index].get_value(True)
 
             if (iter + 1) % validation_frequency == 0:
 
@@ -359,6 +373,10 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
             if patience <= iter:
                 done_looping = True
                 break
+
+        # pull back
+        params_tmp = update_params(params_tmp, threshold)
+        update_model(params_tmp[0],params_tmp[1],params_tmp[2],params_tmp[3],params_tmp[4],params_tmp[5],params_tmp[6], params_tmp[7])
 
     end_time = timeit.default_timer()
     print('Optimization complete.')
