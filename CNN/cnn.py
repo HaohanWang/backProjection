@@ -45,10 +45,8 @@ def sigmoid(x):
 
 def normProjection(param, s):
     shp = param.shape
-    print (shp)
     l = param.reshape((numpy.product(shp), ))
     l = euclidean_proj_simplex(l, s)
-    print (l.sum())
     return numpy.reshape(l, shp)
 
 
