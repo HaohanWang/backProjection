@@ -20,6 +20,8 @@ import pickle
 
 from optimizers import Optimizer
 
+from simplexProjection import *
+
 def save_object(obj, filename):
     with open(filename, 'wb') as output:
         pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
@@ -41,6 +43,15 @@ def sigmoid(x):
     return T.nnet.sigmoid(x)
 
 
+def normProjection(param, s):
+    shp = param.shape
+    print (shp)
+    l = param.reshape((numpy.product(shp), ))
+    l = euclidean_proj_simplex(l, s)
+    print (l.sum())
+    return numpy.reshape(l, shp)
+
+
 def params_shape_like(params):
     l = []
     for k in params:
@@ -48,12 +59,26 @@ def params_shape_like(params):
     return l
 
 
-def update_params(params, threshold):
-    p = numpy.random.random()
-    if p > threshold:
-        return (numpy.zeros_like(params) + params)/2
-    else:
-        return params
+def proximal_operator(params, l1_lambda = 0.0, zero_threshold=0.0, simplex_projection=1.):
+    '''
+    This is not strictly proximal operator, but since it's in that place, let's name it so for now
+    :param params:
+    :param l1_lambda:
+    :param zero_threshold:
+    :param simplex_projection:
+    :return:
+    '''
+    if zero_threshold > 0: # this does not make any sense, but actually work for me on biology data. I believe it works like a regularizer
+        p = numpy.random.random()
+        if p < zero_threshold:
+            return (numpy.zeros_like(params) + params)/2
+        else:
+            return params
+    if l1_lambda > 0: # this is for L1 regularization, but we don't have to do it here
+        return [numpy.abs(numpy.maximum(p-l1_lambda,0))*numpy.sign(p) for p in params]
+    if simplex_projection > 0: # simplex projection
+        return [normProjection(p, simplex_projection) for p in params]
+
 
 
 activation = tanh
@@ -141,7 +166,7 @@ class LeNetConvPoolLayer(object):
 
 def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
                     dataset='mnist.pkl.gz',
-                    nkerns=[20, 50], batch_size=500, threshold=0.5):
+                    nkerns=[20, 50], batch_size=500, threshold=1):
     """ Demonstrates lenet on MNIST dataset
 
     :type learning_rate: float
@@ -374,9 +399,9 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
                 done_looping = True
                 break
 
-        # pull back
-        params_tmp = update_params(params_tmp, threshold)
+        params_tmp = proximal_operator(params_tmp, simplex_projection=1)
         update_model(params_tmp[0],params_tmp[1],params_tmp[2],params_tmp[3],params_tmp[4],params_tmp[5],params_tmp[6], params_tmp[7])
+        # this update_model method looks silly, but it seems there is no other way to do it since theano does not like list
 
     end_time = timeit.default_timer()
     print('Optimization complete.')
